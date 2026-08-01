@@ -1,0 +1,61 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: copilot-db
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-copilot}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-copilot}
+      POSTGRES_DB: ${POSTGRES_DB:-migration_copilot}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-copilot} -d ${POSTGRES_DB:-migration_copilot}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build: ./backend
+    container_name: copilot-backend
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      APP_ENV: ${APP_ENV:-local}
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-copilot}:${POSTGRES_PASSWORD:-copilot}@db:5432/${POSTGRES_DB:-migration_copilot}
+      STORAGE_DIR: /app/storage
+      MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-25}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://127.0.0.1:5173}
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    volumes:
+      - ./backend:/app
+      - backend_storage:/app/storage
+    command: >
+      sh -c "alembic upgrade head &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8000/api/v1/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  frontend:
+    build: ./frontend
+    container_name: copilot-frontend
+    depends_on:
+      - backend
+    environment:
+      VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8000/api/v1}
+    ports:
+      - "${FRONTEND_PORT:-5173}:5173"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+
+volumes:
+  postgres_data:
+  backend_storage:

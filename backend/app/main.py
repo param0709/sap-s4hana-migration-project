@@ -1,0 +1,42 @@
+"""FastAPI application entry point."""
+from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
+from pathlib import Path
+
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
+from app.api.routes import health, projects, uploads
+from app.config import settings
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI) -> AsyncGenerator[None, None]:
+    Path(settings.storage_dir).mkdir(parents=True, exist_ok=True)
+    yield
+
+
+app = FastAPI(
+    title=settings.app_name,
+    version="0.1.0",
+    description="Day 1: projects and ECC Customer Master upload validation.",
+    lifespan=lifespan,
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_origin_list,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+app.include_router(health.router, prefix=settings.api_prefix)
+app.include_router(projects.router, prefix=settings.api_prefix)
+app.include_router(uploads.router, prefix=settings.api_prefix)
+app.include_router(uploads.reference_router, prefix=settings.api_prefix)
+
+
+@app.get("/")
+def root() -> dict:
+    return {"service": settings.app_name, "docs": "/docs", "api": settings.api_prefix}
