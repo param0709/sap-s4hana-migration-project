@@ -6,9 +6,10 @@ from sqlalchemy.orm import Session
 
 from app.constants.ecc_schema import COLUMN_DESCRIPTIONS, OPTIONAL_COLUMNS, REQUIRED_COLUMNS
 from app.database import get_db
+from app.schemas.assessment import AssessmentSummaryRead, FileIssuesRead
 from app.schemas.profile import FileProfileRead
 from app.schemas.upload import UploadedFileRead
-from app.services import file_service, profiling_service, project_service
+from app.services import assessment_service, file_service, profiling_service, project_service
 from app.validation.errors import FileRejectedError
 from app.validation.file_rules import ALLOWED_EXTENSIONS
 
@@ -63,6 +64,43 @@ def get_file_profile(
     if profile is None:
         raise HTTPException(status_code=404, detail="Uploaded file not found in this project.")
     return FileProfileRead.model_validate(profile)
+
+
+@router.post(
+    "/{file_id}/assessment",
+    response_model=AssessmentSummaryRead,
+    status_code=status.HTTP_200_OK,
+)
+def run_assessment(
+    project_id: uuid.UUID,
+    file_id: uuid.UUID,
+    db: Session = Depends(get_db),
+) -> AssessmentSummaryRead:
+    """Run deterministic BR-001–BR-010 assessment and persist record-level issues."""
+    try:
+        summary = assessment_service.assess_file(db, project_id, file_id)
+    except assessment_service.AssessmentDataUnavailableError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"code": "ASSESSMENT_DATA_UNAVAILABLE", "message": str(exc)},
+        ) from exc
+
+    if summary is None:
+        raise HTTPException(status_code=404, detail="Uploaded file not found in this project.")
+    return AssessmentSummaryRead.model_validate(summary)
+
+
+@router.get("/{file_id}/issues", response_model=FileIssuesRead)
+def list_file_issues(
+    project_id: uuid.UUID,
+    file_id: uuid.UUID,
+    db: Session = Depends(get_db),
+) -> FileIssuesRead:
+    """Return persisted issues for one file in stable source-row/rule order (FR-017, FR-018)."""
+    result = assessment_service.get_file_issues(db, project_id, file_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Uploaded file not found in this project.")
+    return FileIssuesRead.model_validate(result)
 
 
 reference_router = APIRouter(prefix="/reference", tags=["reference"])

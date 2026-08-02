@@ -138,3 +138,46 @@ def assess_file(
     except Exception:
         db.rollback()
         raise
+
+
+def get_file_issues(
+    db: Session,
+    project_id: uuid.UUID,
+    file_id: uuid.UUID,
+) -> dict[str, Any] | None:
+    """Return every persisted issue for one file in a stable review order.
+
+    This is a read-only query: it never mutates records or issues and leaves the
+    assessment transaction untouched. Returns None when the file does not exist
+    inside the given project. Issues from later non-business-rule modules are
+    included so the collection stays complete as new issue types are added.
+    """
+    uploaded_file = db.scalar(
+        select(UploadedFile).where(
+            UploadedFile.id == file_id,
+            UploadedFile.project_id == project_id,
+        )
+    )
+    if uploaded_file is None:
+        return None
+
+    issues = list(
+        db.scalars(
+            select(MigrationIssue)
+            .where(
+                MigrationIssue.project_id == project_id,
+                MigrationIssue.uploaded_file_id == file_id,
+            )
+            .order_by(
+                MigrationIssue.source_row_number,
+                MigrationIssue.rule_id,
+            )
+        ).all()
+    )
+
+    return {
+        "project_id": project_id,
+        "uploaded_file_id": file_id,
+        "total_issues": len(issues),
+        "items": issues,
+    }
