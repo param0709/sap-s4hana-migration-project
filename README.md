@@ -1,11 +1,11 @@
 # SAP S/4HANA Migration Co-Pilot
 
-Day 1 of the 14-day plan: create a migration project, upload an ECC Customer Master
-extract, and see immediately whether the file can be read and whether its columns match
-the expected layout.
+Day 2 of the 20-day plan: create a migration project, upload an ECC Customer Master
+extract, preserve every source row, validate its columns and calculate deterministic
+data-quality profile metrics.
 
-Nothing else is built yet. No AI, RAG, authentication, dashboards, business rules,
-transformations or exports.
+AI, RAG, authentication, dashboards, business rules, transformations and exports remain
+scheduled for later days.
 
 ## What works today
 
@@ -17,6 +17,7 @@ transformations or exports.
 | Get project | `GET /api/v1/projects/{project_id}` |
 | Upload ECC file | `POST /api/v1/projects/{project_id}/files/ecc` |
 | List project files | `GET /api/v1/projects/{project_id}/files` |
+| Profile uploaded ECC file | `GET /api/v1/projects/{project_id}/files/{file_id}/profile` |
 | Expected ECC layout | `GET /api/v1/reference/ecc-schema` |
 
 Interactive API docs run at `http://localhost:8000/docs`.
@@ -61,7 +62,20 @@ matching ignores case and surrounding spaces.
 
 Uploaded originals are written to disk byte for byte and never rewritten.
 
+Every accepted source row is also persisted with separate `original_data` and
+`working_data` values. Profiling reads the immutable original values from the database.
+
 Legacy `.xls` workbooks are not supported. Re-save them as `.xlsx` before uploading.
+
+## Profiling definitions
+
+- Missing values are null, empty or whitespace-only values.
+- Unique-value counts exclude missing values.
+- Field completeness is `non-missing values / total records × 100`.
+- Overall completeness uses every record-field cell in the uploaded file.
+- Exact duplicate records match on every original field and value. The first occurrence
+  is the representative; later identical occurrences are counted as duplicates.
+- Files uploaded before durable row persistence must be re-uploaded before profiling.
 
 ## Project status
 

@@ -31,3 +31,9 @@ class IssueSeverity(StrEnum):
     HIGH = "high"
     MEDIUM = "medium"
     LOW = "low"
+
+
+class RecordStatus(StrEnum):
+    """Readiness status of one persisted source record."""
+
+    PENDING = "pending"
