@@ -9,6 +9,7 @@ const ROUTE_LABELS: Record<string, string> = {
 function routeLabel(pathname: string): string {
   if (ROUTE_LABELS[pathname]) return ROUTE_LABELS[pathname];
   if (pathname.includes("/upload")) return "Projects / Upload";
+  if (pathname.includes("/assessment")) return "Projects / Assessment";
   return "Projects";
 }
 

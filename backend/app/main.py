@@ -18,10 +18,11 @@ async def lifespan(_: FastAPI) -> AsyncGenerator[None, None]:
 
 app = FastAPI(
     title=settings.app_name,
-    version="0.3.0",
+    version="0.4.0",
     description=(
-        "Projects, lossless ECC ingestion, schema validation, deterministic profiling "
-        "and deterministic record-level business-rule assessment."
+        "Projects, lossless ECC ingestion, schema validation, deterministic profiling, "
+        "deterministic record-level business-rule assessment and a project-defined "
+        "deterministic migration readiness score."
     ),
     lifespan=lifespan,
 )

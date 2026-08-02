@@ -105,7 +105,11 @@ export function ProjectListPage() {
                     </td>
                     <td className="cell-sub">{formatDate(project.created_at)}</td>
                     <td style={{ textAlign: "right" }}>
-                      <Link to={`/projects/${project.id}/upload`}>Upload data</Link>
+                      {project.status === "draft" ? (
+                        <Link to={`/projects/${project.id}/upload`}>Upload data</Link>
+                      ) : (
+                        <Link to={`/projects/${project.id}/assessment`}>Open assessment</Link>
+                      )}
                     </td>
                   </tr>
                 ))}

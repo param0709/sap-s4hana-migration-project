@@ -8,8 +8,15 @@ from app.constants.ecc_schema import COLUMN_DESCRIPTIONS, OPTIONAL_COLUMNS, REQU
 from app.database import get_db
 from app.schemas.assessment import AssessmentSummaryRead, FileIssuesRead
 from app.schemas.profile import FileProfileRead
+from app.schemas.readiness import ReadinessRead
 from app.schemas.upload import UploadedFileRead
-from app.services import assessment_service, file_service, profiling_service, project_service
+from app.services import (
+    assessment_service,
+    file_service,
+    profiling_service,
+    project_service,
+    readiness_service,
+)
 from app.validation.errors import FileRejectedError
 from app.validation.file_rules import ALLOWED_EXTENSIONS
 
@@ -101,6 +108,37 @@ def list_file_issues(
     if result is None:
         raise HTTPException(status_code=404, detail="Uploaded file not found in this project.")
     return FileIssuesRead.model_validate(result)
+
+
+@router.get("/{file_id}/readiness", response_model=ReadinessRead)
+def get_file_readiness(
+    project_id: uuid.UUID,
+    file_id: uuid.UUID,
+    db: Session = Depends(get_db),
+) -> ReadinessRead:
+    """Return the deterministic Migration Readiness Score (methodology v1).
+
+    Read-only: it never mutates state and never runs assessment on its own. The
+    file must have completed assessment first, otherwise a 409 asks the
+    consultant to run assessment. This is a project-defined readiness indicator,
+    not an official SAP metric.
+    """
+    try:
+        result = readiness_service.calculate_readiness(db, project_id, file_id)
+    except readiness_service.ReadinessDataUnavailableError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"code": "READINESS_DATA_UNAVAILABLE", "message": str(exc)},
+        ) from exc
+    except readiness_service.AssessmentRequiredError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"code": "ASSESSMENT_REQUIRED", "message": str(exc)},
+        ) from exc
+
+    if result is None:
+        raise HTTPException(status_code=404, detail="Uploaded file not found in this project.")
+    return ReadinessRead.model_validate(result)
 
 
 reference_router = APIRouter(prefix="/reference", tags=["reference"])

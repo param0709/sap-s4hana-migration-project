@@ -1,8 +1,12 @@
 import type {
+  AssessmentSummary,
   EccSchemaReference,
+  FileIssues,
+  FileProfile,
   Project,
   ProjectCreate,
   ProjectList,
+  Readiness,
   UploadedFile,
 } from "../types";
 
@@ -90,4 +94,22 @@ export const api = {
   },
 
   getEccSchema: () => request<EccSchemaReference>("/reference/ecc-schema"),
+
+  getProfile: (projectId: string, fileId: string) =>
+    request<FileProfile>(`/projects/${projectId}/files/${fileId}/profile`),
+
+  runAssessment: (projectId: string, fileId: string) =>
+    request<AssessmentSummary>(
+      `/projects/${projectId}/files/${fileId}/assessment`,
+      { method: "POST" },
+    ),
+
+  getIssues: (projectId: string, fileId: string) =>
+    request<FileIssues>(`/projects/${projectId}/files/${fileId}/issues`),
+
+  // Readiness is only available after assessment: a 409 with code
+  // ASSESSMENT_REQUIRED surfaces on the returned ApiError, letting callers
+  // distinguish "assessment not run yet" from a genuine load failure.
+  getReadiness: (projectId: string, fileId: string) =>
+    request<Readiness>(`/projects/${projectId}/files/${fileId}/readiness`),
 };

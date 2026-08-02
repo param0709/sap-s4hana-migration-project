@@ -51,3 +51,18 @@ class IssueStatus(StrEnum):
     """Lifecycle status of a migration issue."""
 
     OPEN = "open"
+
+
+class ReadinessBand(StrEnum):
+    """Qualitative band for the deterministic migration readiness score.
+
+    ``BLOCKED`` is chosen whenever a migration-blocking finding exists, even if
+    the numeric score is high, so a good-looking score can never hide a critical
+    blocker. The remaining bands are ordered thresholds on the numeric score.
+    """
+
+    BLOCKED = "blocked"
+    READY = "ready"
+    MINOR_REMEDIATION = "minor_remediation"
+    AT_RISK = "at_risk"
+    NOT_READY = "not_ready"

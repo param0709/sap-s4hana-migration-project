@@ -176,7 +176,8 @@ export function UploadPage() {
           <div className="panel__body" style={{ paddingBottom: 0 }}>
             <h2 className="section-title">Schema findings</h2>
             <p className="page__lede" style={{ marginBottom: 16 }}>
-              Resolve these before the assessment runs. The file stays in the project either way.
+              These do not block assessment — you can still assess the file — but they must be
+              resolved before export. The file stays in the project either way.
             </p>
           </div>
           {errors.map((error) => (
@@ -226,6 +227,11 @@ export function UploadPage() {
       ) : null}
 
       <div className="button-row" style={{ marginTop: 22 }}>
+        {result ? (
+          <Link className="button button--primary" to={`/projects/${projectId}/assessment`}>
+            Continue to assessment
+          </Link>
+        ) : null}
         <Link className="button button--quiet" to="/">
           Back to projects
         </Link>
