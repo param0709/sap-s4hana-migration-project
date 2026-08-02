@@ -37,3 +37,17 @@ class RecordStatus(StrEnum):
     """Readiness status of one persisted source record."""
 
     PENDING = "pending"
+    READY = "ready"
+    NEEDS_REVIEW = "needs_review"
+
+
+class IssueType(StrEnum):
+    """Source of a migration issue."""
+
+    BUSINESS_RULE = "business_rule"
+
+
+class IssueStatus(StrEnum):
+    """Lifecycle status of a migration issue."""
+
+    OPEN = "open"
