@@ -73,3 +73,123 @@ export interface EccSchemaReference {
   required_columns: SchemaColumn[];
   optional_columns: SchemaColumn[];
 }
+
+// ---------- Profiling (FR-011–FR-014) ----------
+
+export interface FieldProfile {
+  field_name: string;
+  total_records: number;
+  missing_values: number;
+  non_missing_values: number;
+  unique_values: number;
+  completeness_percentage: number;
+}
+
+export interface DuplicateGroup {
+  representative_row_number: number;
+  duplicate_row_numbers: number[];
+  record_count: number;
+  duplicate_count: number;
+}
+
+export interface FileProfile {
+  project_id: string;
+  uploaded_file_id: string;
+  file_name: string;
+  total_records: number;
+  total_fields: number;
+  total_missing_values: number;
+  overall_completeness_percentage: number;
+  exact_duplicate_records: number;
+  exact_duplicate_groups: number;
+  fields: FieldProfile[];
+  duplicate_groups: DuplicateGroup[];
+}
+
+// ---------- Assessment (FR-015–FR-018) ----------
+
+export type IssueType = "business_rule";
+export type IssueStatus = "open";
+
+/** JSON scalar as returned for a persisted issue's current value. */
+export type IssueValue = string | number | boolean | null;
+
+export interface SeverityCounts {
+  critical: number;
+  high: number;
+  medium: number;
+  low: number;
+}
+
+export interface AssessmentSummary {
+  project_id: string;
+  uploaded_file_id: string;
+  total_records: number;
+  records_ready: number;
+  records_needing_review: number;
+  total_issues: number;
+  issues_by_severity: SeverityCounts;
+  issues_by_rule: Record<string, number>;
+}
+
+export interface MigrationIssue {
+  id: string;
+  project_id: string;
+  uploaded_file_id: string;
+  migration_record_id: string;
+  source_row_number: number;
+  issue_type: IssueType;
+  rule_id: string;
+  rule_name: string;
+  field_name: string;
+  severity: IssueSeverity;
+  current_value: IssueValue;
+  reason: string;
+  suggested_action: string;
+  issue_status: IssueStatus;
+  created_at: string;
+}
+
+export interface FileIssues {
+  project_id: string;
+  uploaded_file_id: string;
+  total_issues: number;
+  items: MigrationIssue[];
+}
+
+// ---------- Readiness (project-defined methodology v1) ----------
+
+export type ReadinessBand =
+  | "blocked"
+  | "ready"
+  | "minor_remediation"
+  | "at_risk"
+  | "not_ready";
+
+export interface ReadinessComponent {
+  score: number;
+  weight: number;
+  weighted_score: number;
+}
+
+export interface ReadinessComponents {
+  schema_conformity: ReadinessComponent;
+  data_completeness: ReadinessComponent;
+  record_readiness: ReadinessComponent;
+  issue_severity: ReadinessComponent;
+}
+
+export interface Readiness {
+  project_id: string;
+  uploaded_file_id: string;
+  methodology_version: "v1";
+  score: number;
+  band: ReadinessBand;
+  migration_ready: boolean;
+  critical_blockers: number;
+  total_records: number;
+  records_ready: number;
+  records_needing_review: number;
+  total_issues: number;
+  components: ReadinessComponents;
+}

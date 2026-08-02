@@ -626,12 +626,292 @@ a:hover {
   font-size: 14px;
 }
 
+/* ---------- Toolbar / file select ---------- */
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.toolbar .field__label {
+  margin-bottom: 0;
+}
+.select {
+  width: auto;
+  min-width: 220px;
+  max-width: 100%;
+}
+
+/* ---------- Table scroll container ---------- */
+
+.table-scroll {
+  overflow-x: auto;
+  border-top: 1px solid var(--rule);
+}
+.table-scroll .table {
+  min-width: 640px;
+}
+.table-scroll .table th {
+  padding-top: 16px;
+}
+.table-scroll .table th:first-child,
+.table-scroll .table td:first-child {
+  padding-left: 22px;
+}
+.table-scroll .table th:last-child,
+.table-scroll .table td:last-child {
+  padding-right: 22px;
+}
+
+/* ---------- Readiness ---------- */
+
+.metrics--six {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+
+.readiness__grid {
+  display: grid;
+  grid-template-columns: minmax(220px, 300px) 1fr;
+  gap: 28px;
+  align-items: center;
+  margin-top: 4px;
+}
+
+.readiness__meter {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.readiness__score {
+  font-family: var(--font-mono);
+  font-size: 52px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  color: var(--signal);
+}
+.readiness__score--ready { color: var(--ok); }
+.readiness__score--minor_remediation { color: var(--medium); }
+.readiness__score--at_risk { color: var(--high); }
+.readiness__score--not_ready,
+.readiness__score--blocked { color: var(--critical); }
+
+.readiness__score-max {
+  font-size: 18px;
+  color: var(--ink-faint);
+  margin-left: 4px;
+}
+
+.meter {
+  height: 10px;
+  border-radius: 999px;
+  background: var(--panel-sunken);
+  border: 1px solid var(--rule);
+  overflow: hidden;
+}
+.meter__fill {
+  height: 100%;
+  background: var(--signal);
+  transition: width 240ms ease;
+}
+.meter--ready .meter__fill { background: var(--ok); }
+.meter--minor_remediation .meter__fill { background: var(--medium); }
+.meter--at_risk .meter__fill { background: var(--high); }
+.meter--not_ready .meter__fill,
+.meter--blocked .meter__fill { background: var(--critical); }
+
+.readiness__facts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px 20px;
+}
+.fact {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.fact__label {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.fact__value {
+  font-family: var(--font-mono);
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.readiness__components {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px 28px;
+  margin-top: 26px;
+}
+.component__head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.component__label {
+  font-weight: 600;
+  font-size: 13.5px;
+}
+.component__weight {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-faint);
+}
+.component__score {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-weight: 600;
+}
+.component__track {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--panel-sunken);
+  border: 1px solid var(--rule);
+  overflow: hidden;
+}
+.component__fill {
+  height: 100%;
+  background: var(--signal);
+  transition: width 240ms ease;
+}
+.component__note {
+  margin: 6px 0 0;
+  font-size: 12.5px;
+  color: var(--ink-faint);
+}
+
+.methodology-note {
+  margin: 24px 0 0;
+  padding-top: 16px;
+  border-top: 1px solid var(--rule);
+  font-size: 12.5px;
+  color: var(--ink-soft);
+  max-width: 80ch;
+}
+
+/* ---------- Band pills ---------- */
+
+.pill--band-ready { color: var(--ok); }
+.pill--band-minor_remediation { color: var(--medium); }
+.pill--band-at_risk { color: var(--high); }
+.pill--band-not_ready,
+.pill--band-blocked { color: var(--critical); }
+
+/* ---------- Blocker callout / assessment CTA ---------- */
+
+.blocker-callout {
+  border: 1px solid var(--critical);
+  border-left-width: 3px;
+  border-radius: var(--step);
+  background: #fbf1f0;
+  padding: 14px 16px;
+  margin-bottom: 20px;
+}
+.blocker-callout__title {
+  margin: 0 0 3px;
+  font-weight: 700;
+  color: var(--critical);
+}
+.blocker-callout__body {
+  margin: 0;
+  color: var(--critical);
+  opacity: 0.85;
+  font-size: 13.5px;
+}
+
+.assessment-cta {
+  padding: 8px 0 4px;
+}
+.assessment-cta__title {
+  font-weight: 600;
+  margin: 0 0 4px;
+}
+.assessment-cta__body {
+  color: var(--ink-soft);
+  margin: 0 0 16px;
+  max-width: 70ch;
+}
+
+/* ---------- Issues filter ---------- */
+
+.issues__head {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.filter-group {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-left: auto;
+}
+.chip-toggle {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--rule-strong);
+  background: var(--panel);
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+.chip-toggle:hover {
+  border-color: var(--signal);
+}
+.chip-toggle--on {
+  background: var(--signal);
+  border-color: var(--signal);
+  color: #fff;
+}
+
+.value-missing {
+  color: var(--ink-faint);
+  font-style: italic;
+}
+
+.plain-list {
+  margin: 0;
+  padding-left: 18px;
+}
+.plain-list li {
+  margin-bottom: 4px;
+}
+
 /* ---------- Responsive ---------- */
+
+@media (max-width: 960px) {
+  .metrics--six {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .readiness__grid {
+    grid-template-columns: 1fr;
+    gap: 20px;
+    align-items: start;
+  }
+  .readiness__components {
+    grid-template-columns: 1fr;
+  }
+}
 
 @media (max-width: 720px) {
   .field-grid,
   .metrics {
     grid-template-columns: 1fr;
+  }
+  .metrics--six {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   .metric {
     border-right: none;
@@ -640,12 +920,18 @@ a:hover {
   .metric:last-child {
     border-bottom: none;
   }
+  .readiness__facts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
   .table--flush {
     margin: -22px -22px;
     width: calc(100% + 44px);
   }
   .page {
     padding: 26px 16px 72px;
+  }
+  .filter-group {
+    margin-left: 0;
   }
 }
 
