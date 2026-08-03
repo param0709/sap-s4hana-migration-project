@@ -47,6 +47,25 @@ const assessmentRequiredError = new ApiError(
   "ASSESSMENT_REQUIRED",
 );
 
+const readinessUnavailableError = new ApiError(
+  "This file has no complete persisted record set to score. Re-upload the file before requesting readiness.",
+  409,
+  "READINESS_DATA_UNAVAILABLE",
+);
+
+const profileUnavailableError = new ApiError(
+  "The persisted record count does not match this upload's metadata. Re-upload the file to rebuild a complete profile source.",
+  409,
+  "PROFILE_DATA_UNAVAILABLE",
+);
+
+const emptyIssues = (fileId = "f1") => ({
+  project_id: "p1",
+  uploaded_file_id: fileId,
+  total_issues: 0,
+  items: [],
+});
+
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(api.getProject).mockResolvedValue(makeProject());
@@ -164,6 +183,9 @@ describe("AssessmentPage", () => {
     renderPage();
 
     expect(await screen.findByText("No issues found")).toBeInTheDocument();
+    expect(
+      screen.getByText(/Every assessed record passed the deterministic business rules/i),
+    ).toBeInTheDocument();
   });
 
   // 6. Issues table shows full consultant context.
@@ -259,5 +281,166 @@ describe("AssessmentPage", () => {
     const link = await screen.findByRole("link", { name: /upload ecc data/i });
     expect(link).toHaveAttribute("href", "/projects/p1/upload");
     await waitFor(() => expect(api.getProfile).not.toHaveBeenCalled());
+  });
+
+  // 11. An incomplete persisted record set must never read as a clean pass.
+  it("shows the unavailable issue state when the record set is incomplete", async () => {
+    vi.mocked(api.getProfile).mockRejectedValue(profileUnavailableError);
+    vi.mocked(api.getReadiness).mockRejectedValue(readinessUnavailableError);
+    // The issues endpoint still answers 200 with an empty collection.
+    vi.mocked(api.getIssues).mockResolvedValue(emptyIssues());
+
+    renderPage();
+
+    expect(await screen.findByText("Issue assessment unavailable")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        /does not have a complete persisted record set for issue assessment/i,
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("No issues found")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Every assessed record passed/i)).not.toBeInTheDocument();
+    // The defensive readiness and profile messages are unchanged.
+    expect(screen.getByText("Readiness unavailable")).toBeInTheDocument();
+    expect(screen.getByText("Profile unavailable")).toBeInTheDocument();
+    // Re-upload uses the existing upload route.
+    expect(screen.getByRole("link", { name: /re-upload source file/i })).toHaveAttribute(
+      "href",
+      "/projects/p1/upload",
+    );
+  });
+
+  // 11b. Readiness alone being unavailable is enough to distrust the collection.
+  it("does not claim a clean pass when only readiness data is unavailable", async () => {
+    vi.mocked(api.getReadiness).mockRejectedValue(readinessUnavailableError);
+    vi.mocked(api.getIssues).mockResolvedValue(emptyIssues());
+
+    renderPage();
+
+    expect(await screen.findByText("Issue assessment unavailable")).toBeInTheDocument();
+    expect(screen.queryByText("No issues found")).not.toBeInTheDocument();
+  });
+
+  // 12. A failed issue request is not an empty successful result.
+  it("shows a load failure when the issues request fails", async () => {
+    vi.mocked(api.getIssues).mockRejectedValue(
+      new ApiError("Internal error", 500),
+    );
+
+    renderPage();
+
+    expect(await screen.findByText("Unable to load issues")).toBeInTheDocument();
+    expect(screen.queryByText("No issues found")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Every assessed record passed/i)).not.toBeInTheDocument();
+  });
+
+  // 12b. A transport failure falls back to the generic guidance.
+  it("falls back to generic guidance when the issue error has no message", async () => {
+    vi.mocked(api.getIssues).mockRejectedValue(new Error("boom"));
+
+    renderPage();
+
+    expect(await screen.findByText("Unable to load issues")).toBeInTheDocument();
+    expect(
+      screen.getByText(/The issue assessment could not be loaded/i),
+    ).toBeInTheDocument();
+  });
+
+  // 13. An unassessed file is never presented as having passed.
+  it("keeps the assessment-required state and never claims a pass", async () => {
+    vi.mocked(api.getReadiness).mockRejectedValue(assessmentRequiredError);
+
+    renderPage();
+
+    expect(await screen.findByText("Assessment not run")).toBeInTheDocument();
+    expect(screen.getByText("Not assessed yet")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /run assessment/i })).toBeEnabled();
+    expect(screen.queryByText("No issues found")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Every assessed record passed/i)).not.toBeInTheDocument();
+  });
+
+  // 14. Switching source files must not leak the previous file's issue state.
+  it("resets issue state when the source file changes", async () => {
+    const user = userEvent.setup();
+    const first = makeFile();
+    const second = makeFile({
+      id: "f2",
+      file_name: "incomplete_ecc_customers.csv",
+      uploaded_at: "2026-07-30T07:24:00Z",
+    });
+    vi.mocked(api.listFiles).mockResolvedValue([first, second]);
+    vi.mocked(api.getProfile).mockImplementation(async (_p, fileId) => {
+      if (fileId === "f2") throw profileUnavailableError;
+      return makeProfile();
+    });
+    vi.mocked(api.getIssues).mockImplementation(async (_p, fileId) => ({
+      project_id: "p1",
+      uploaded_file_id: fileId,
+      total_issues: fileId === "f1" ? 1 : 0,
+      items: fileId === "f1" ? [makeIssue()] : [],
+    }));
+    vi.mocked(api.getReadiness).mockImplementation(async (_p, fileId) => {
+      if (fileId === "f2") throw readinessUnavailableError;
+      return makeReadyReadiness({ total_issues: 1, records_needing_review: 1 });
+    });
+
+    renderPage();
+
+    expect(await screen.findByText("BR-006")).toBeInTheDocument();
+
+    await user.selectOptions(screen.getByLabelText(/source file/i), "f2");
+
+    expect(await screen.findByText("Issue assessment unavailable")).toBeInTheDocument();
+    expect(screen.queryByText("BR-006")).not.toBeInTheDocument();
+    expect(screen.queryByText("No issues found")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Every assessed record passed/i)).not.toBeInTheDocument();
+  });
+
+  // 15. Switching back to a healthy file restores its issues and filters.
+  it("restores issues and severity filtering after switching back", async () => {
+    const user = userEvent.setup();
+    const first = makeFile();
+    const second = makeFile({
+      id: "f2",
+      file_name: "incomplete_ecc_customers.csv",
+      uploaded_at: "2026-07-30T07:24:00Z",
+    });
+    vi.mocked(api.listFiles).mockResolvedValue([first, second]);
+    vi.mocked(api.getProfile).mockImplementation(async (_p, fileId) => {
+      if (fileId === "f2") throw profileUnavailableError;
+      return makeProfile();
+    });
+    vi.mocked(api.getIssues).mockImplementation(async (_p, fileId) => ({
+      project_id: "p1",
+      uploaded_file_id: fileId,
+      total_issues: fileId === "f1" ? 2 : 0,
+      items:
+        fileId === "f1"
+          ? [
+              makeIssue({ id: "i1", rule_id: "BR-004", severity: "critical" }),
+              makeIssue({ id: "i2", rule_id: "BR-006", severity: "medium" }),
+            ]
+          : [],
+    }));
+    vi.mocked(api.getReadiness).mockImplementation(async (_p, fileId) => {
+      if (fileId === "f2") throw readinessUnavailableError;
+      return makeReadyReadiness({ total_issues: 2, records_needing_review: 2 });
+    });
+
+    renderPage();
+
+    const select = await screen.findByLabelText(/source file/i);
+    expect(await screen.findByText("BR-004")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /^critical$/i }));
+    expect(screen.queryByText("BR-006")).not.toBeInTheDocument();
+
+    await user.selectOptions(select, "f2");
+    expect(await screen.findByText("Issue assessment unavailable")).toBeInTheDocument();
+
+    await user.selectOptions(select, "f1");
+    // Issues return and the stale severity filter is cleared.
+    expect(await screen.findByText("BR-004")).toBeInTheDocument();
+    expect(screen.getByText("BR-006")).toBeInTheDocument();
   });
 });

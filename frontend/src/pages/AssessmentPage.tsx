@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
 import { api, ApiError } from "../api/client";
@@ -59,6 +59,52 @@ const SEVERITY_FILTERS: (IssueSeverity | "all")[] = [
   "low",
 ];
 
+/**
+ * Backend rejection codes that mean the persisted record set behind this file is
+ * missing or inconsistent. An issue collection read while any of these hold is
+ * not evidence that every record passed — it is evidence of nothing at all.
+ */
+const DATA_UNAVAILABLE_CODES = new Set([
+  "PROFILE_DATA_UNAVAILABLE",
+  "ASSESSMENT_DATA_UNAVAILABLE",
+  "READINESS_DATA_UNAVAILABLE",
+]);
+
+const ISSUES_UNAVAILABLE_BODY =
+  "This file does not have a complete persisted record set for issue assessment. " +
+  "Re-upload the file to rebuild the assessment source.";
+
+const ISSUES_FAILED_BODY =
+  "The issue assessment could not be loaded. Try again or re-upload the source file.";
+
+/**
+ * What the Issues panel is allowed to claim. The distinction matters: only
+ * `loaded` with an empty collection may be reported as a clean pass.
+ */
+type IssuesState =
+  | { status: "loading" }
+  | { status: "not_assessed" }
+  | { status: "unavailable" }
+  | { status: "failed"; message: string }
+  | { status: "loaded"; items: MigrationIssue[] };
+
+/** Stable identity so the severity filter memo does not rerun needlessly. */
+const NO_ISSUES: MigrationIssue[] = [];
+
+function isDataUnavailable(caught: unknown): boolean {
+  return (
+    caught instanceof ApiError &&
+    caught.code !== undefined &&
+    DATA_UNAVAILABLE_CODES.has(caught.code)
+  );
+}
+
+function errorMessage(caught: unknown, fallback: string): string {
+  return caught instanceof ApiError && caught.message.trim() !== ""
+    ? caught.message
+    : fallback;
+}
+
 /** A missing current value must read as "Missing", never as null or blank. */
 function displayValue(value: IssueValue): string {
   if (value === null) return "Missing";
@@ -80,7 +126,7 @@ export function AssessmentPage() {
   const [selectedFileId, setSelectedFileId] = useState<string | null>(null);
 
   const [profile, setProfile] = useState<FileProfile | null>(null);
-  const [issues, setIssues] = useState<MigrationIssue[]>([]);
+  const [issuesState, setIssuesState] = useState<IssuesState>({ status: "loading" });
   const [readiness, setReadiness] = useState<Readiness | null>(null);
   const [assessmentRequired, setAssessmentRequired] = useState(false);
 
@@ -96,47 +142,89 @@ export function AssessmentPage() {
 
   const [severityFilter, setSeverityFilter] = useState<IssueSeverity | "all">("all");
 
+  // Only the newest file request may write state, so a slow response for a
+  // previously selected file can never land under the file now on screen.
+  const requestToken = useRef(0);
+
   const loadFileData = useCallback(
     async (fileId: string) => {
+      const token = (requestToken.current += 1);
+      const isCurrent = () => requestToken.current === token;
+
       setLoadingFile(true);
+      setProfile(null);
+      setReadiness(null);
       setProfileError(null);
       setReadinessError(null);
       setAssessmentError(null);
       setFeedback(null);
       setAssessmentRequired(false);
+      setIssuesState({ status: "loading" });
+      setSeverityFilter("all");
+
+      // The issues endpoint answers from persisted rows without checking that
+      // the record set is complete, so an unavailable profile or readiness
+      // source invalidates whatever that collection happens to contain.
+      let dataUnavailable = false;
+      let notAssessed = false;
+      let issueOutcome: IssuesState | null = null;
 
       try {
-        setProfile(await api.getProfile(projectId, fileId));
+        const loaded = await api.getProfile(projectId, fileId);
+        if (!isCurrent()) return;
+        setProfile(loaded);
       } catch (caught) {
+        if (!isCurrent()) return;
         setProfile(null);
-        setProfileError(
-          caught instanceof ApiError ? caught.message : "The profile could not be loaded.",
-        );
+        if (isDataUnavailable(caught)) dataUnavailable = true;
+        setProfileError(errorMessage(caught, "The profile could not be loaded."));
       }
 
       try {
         const result = await api.getIssues(projectId, fileId);
-        setIssues(result.items);
-      } catch {
-        setIssues([]);
+        if (!isCurrent()) return;
+        issueOutcome = { status: "loaded", items: result.items };
+      } catch (caught) {
+        if (!isCurrent()) return;
+        if (isDataUnavailable(caught)) {
+          dataUnavailable = true;
+        } else {
+          issueOutcome = {
+            status: "failed",
+            message: errorMessage(caught, ISSUES_FAILED_BODY),
+          };
+        }
       }
 
       try {
-        setReadiness(await api.getReadiness(projectId, fileId));
+        const loaded = await api.getReadiness(projectId, fileId);
+        if (!isCurrent()) return;
+        setReadiness(loaded);
       } catch (caught) {
+        if (!isCurrent()) return;
         setReadiness(null);
         if (caught instanceof ApiError && caught.code === "ASSESSMENT_REQUIRED") {
           setAssessmentRequired(true);
+          notAssessed = true;
         } else {
+          if (isDataUnavailable(caught)) dataUnavailable = true;
           setReadinessError(
-            caught instanceof ApiError
-              ? caught.message
-              : "The readiness score could not be loaded.",
+            errorMessage(caught, "The readiness score could not be loaded."),
           );
         }
-      } finally {
-        setLoadingFile(false);
       }
+
+      if (!isCurrent()) return;
+      if (dataUnavailable) {
+        setIssuesState({ status: "unavailable" });
+      } else if (issueOutcome?.status === "failed") {
+        setIssuesState(issueOutcome);
+      } else if (notAssessed) {
+        setIssuesState({ status: "not_assessed" });
+      } else {
+        setIssuesState(issueOutcome ?? { status: "unavailable" });
+      }
+      setLoadingFile(false);
     },
     [projectId],
   );
@@ -190,7 +278,16 @@ export function AssessmentPage() {
         api.getIssues(projectId, selectedFileId),
         api.getReadiness(projectId, selectedFileId),
       ]);
-      if (issueResult.status === "fulfilled") setIssues(issueResult.value.items);
+      if (issueResult.status === "fulfilled") {
+        setIssuesState({ status: "loaded", items: issueResult.value.items });
+      } else if (isDataUnavailable(issueResult.reason)) {
+        setIssuesState({ status: "unavailable" });
+      } else {
+        setIssuesState({
+          status: "failed",
+          message: errorMessage(issueResult.reason, ISSUES_FAILED_BODY),
+        });
+      }
       if (readinessResult.status === "fulfilled") {
         setReadiness(readinessResult.value);
         setAssessmentRequired(false);
@@ -198,6 +295,7 @@ export function AssessmentPage() {
       }
       setFeedback("Assessment complete.");
     } catch (caught) {
+      if (isDataUnavailable(caught)) setIssuesState({ status: "unavailable" });
       setAssessmentError(
         caught instanceof ApiError
           ? caught.message
@@ -207,6 +305,8 @@ export function AssessmentPage() {
       setRunning(false);
     }
   };
+
+  const issues = issuesState.status === "loaded" ? issuesState.items : NO_ISSUES;
 
   const filteredIssues = useMemo(
     () =>
@@ -305,11 +405,11 @@ export function AssessmentPage() {
           <ProfileSection profile={profile} error={profileError} loading={loadingFile} />
 
           <IssuesSection
-            issues={filteredIssues}
-            totalIssues={issues.length}
+            state={issuesState}
+            visibleIssues={filteredIssues}
             severityFilter={severityFilter}
             onFilter={setSeverityFilter}
-            assessmentRequired={assessmentRequired}
+            projectId={projectId}
           />
         </>
       )}
@@ -583,18 +683,20 @@ function ProfileSection({
 }
 
 function IssuesSection({
-  issues,
-  totalIssues,
+  state,
+  visibleIssues,
   severityFilter,
   onFilter,
-  assessmentRequired,
+  projectId,
 }: {
-  issues: MigrationIssue[];
-  totalIssues: number;
+  state: IssuesState;
+  visibleIssues: MigrationIssue[];
   severityFilter: IssueSeverity | "all";
   onFilter: (value: IssueSeverity | "all") => void;
-  assessmentRequired: boolean;
+  projectId: string;
 }) {
+  const totalIssues = state.status === "loaded" ? state.items.length : 0;
+
   return (
     <div className="panel">
       <div className="panel__body">
@@ -620,18 +722,36 @@ function IssuesSection({
         </div>
       </div>
 
-      {totalIssues === 0 ? (
+      {state.status === "loading" ? (
         <div className="placeholder">
-          <p className="placeholder__title">
-            {assessmentRequired ? "Not assessed yet" : "No issues found"}
-          </p>
-          <p>
-            {assessmentRequired
-              ? "Run assessment to check this file against the business rules."
-              : "Every assessed record passed the deterministic business rules."}
-          </p>
+          <p>Loading issues&hellip;</p>
         </div>
-      ) : issues.length === 0 ? (
+      ) : state.status === "unavailable" ? (
+        <div className="panel__body">
+          <Banner
+            tone="error"
+            title="Issue assessment unavailable"
+            body={ISSUES_UNAVAILABLE_BODY}
+          />
+          <Link className="button button--primary" to={`/projects/${projectId}/upload`}>
+            Re-upload source file
+          </Link>
+        </div>
+      ) : state.status === "failed" ? (
+        <div className="panel__body">
+          <Banner tone="error" title="Unable to load issues" body={state.message} />
+        </div>
+      ) : state.status === "not_assessed" ? (
+        <div className="placeholder">
+          <p className="placeholder__title">Not assessed yet</p>
+          <p>Run assessment to check this file against the business rules.</p>
+        </div>
+      ) : totalIssues === 0 ? (
+        <div className="placeholder">
+          <p className="placeholder__title">No issues found</p>
+          <p>Every assessed record passed the deterministic business rules.</p>
+        </div>
+      ) : visibleIssues.length === 0 ? (
         <div className="placeholder">
           <p>No issues match this severity filter.</p>
         </div>
@@ -651,7 +771,7 @@ function IssuesSection({
               </tr>
             </thead>
             <tbody>
-              {issues.map((issue) => (
+              {visibleIssues.map((issue) => (
                 <tr key={issue.id}>
                   <td className="numeric">{issue.source_row_number}</td>
                   <td>
