@@ -119,6 +119,38 @@ RULES: tuple[RuleDefinition, ...] = (
         "Customer is marked for deletion in SAP ECC.",
         "Review the deletion flag before including this customer.",
     ),
+    RuleDefinition(
+        "BR-011",
+        "City required",
+        "ORT01",
+        IssueSeverity.CRITICAL,
+        "Customer city is missing.",
+        "Enter the customer city before migration.",
+    ),
+    RuleDefinition(
+        "BR-012",
+        "Country required",
+        "LAND1",
+        IssueSeverity.CRITICAL,
+        "Customer country is missing.",
+        "Enter a valid two-letter country code before migration.",
+    ),
+    RuleDefinition(
+        "BR-013",
+        "Customer account group required",
+        "KTOKD",
+        IssueSeverity.CRITICAL,
+        "ECC customer account group is missing.",
+        "Enter the source account group before CVI mapping.",
+    ),
+    RuleDefinition(
+        "BR-014",
+        "Company code required",
+        "BUKRS",
+        IssueSeverity.CRITICAL,
+        "Customer company code is missing.",
+        "Enter the company code before migration.",
+    ),
 )
 
 _RULE_BY_ID = {rule.rule_id: rule for rule in RULES}
@@ -193,7 +225,7 @@ def evaluate_business_rules(
             findings.append(_finding("BR-001", record.get("KUNNR")))
         if _is_missing(record.get("NAME1")):
             findings.append(_finding("BR-002", record.get("NAME1")))
-        if country not in ISO_ALPHA2_CODES:
+        if country and country not in ISO_ALPHA2_CODES:
             findings.append(_finding("BR-003", record.get("LAND1")))
         if country == "IN" and _is_missing(gstin):
             findings.append(_finding("BR-004", gstin))
@@ -211,6 +243,14 @@ def evaluate_business_rules(
             findings.append(_finding("BR-009", creation_date))
         if _text(record.get("LOEVM")).upper() == "X":
             findings.append(_finding("BR-010", record.get("LOEVM")))
+        if _is_missing(record.get("ORT01")):
+            findings.append(_finding("BR-011", record.get("ORT01")))
+        if _is_missing(record.get("LAND1")):
+            findings.append(_finding("BR-012", record.get("LAND1")))
+        if _is_missing(record.get("KTOKD")):
+            findings.append(_finding("BR-013", record.get("KTOKD")))
+        if _is_missing(record.get("BUKRS")):
+            findings.append(_finding("BR-014", record.get("BUKRS")))
 
         results.append(findings)
 

@@ -107,3 +107,7 @@ Stores important user and system actions.
 | BR-008 | KUNNR | Must be unique | Critical |
 | BR-009 | ERDAT | Must contain a valid date | Low |
 | BR-010 | LOEVM | Deleted records require review | High |
+| BR-011 | ORT01 | Must not be empty | Critical |
+| BR-012 | LAND1 | Must not be empty | Critical |
+| BR-013 | KTOKD | Must not be empty | Critical |
+| BR-014 | BUKRS | Must not be empty | Critical |

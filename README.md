@@ -1,130 +1,153 @@
 # SAP S/4HANA Migration Co-Pilot
 
-Through Day 4 of the 20-day plan: create a migration project, upload an ECC Customer
-Master extract, preserve every source row, validate its columns, calculate deterministic
-data-quality profile metrics, run deterministic business-rule assessment (`BR-001`–`BR-010`)
-and read a transparent, project-defined Migration Readiness Score.
+[![CI](https://github.com/param0709/sap-s4hana-migration-project/actions/workflows/ci.yml/badge.svg)](https://github.com/param0709/sap-s4hana-migration-project/actions/workflows/ci.yml)
+![Day 5](https://img.shields.io/badge/20--day_build-Day_5_complete-0e5c68)
+![Python](https://img.shields.io/badge/Python-3.12-3776ab)
+![React](https://img.shields.io/badge/React-18.3-149eca)
 
-AI, RAG, CVI checks, field mapping, human review, transformations and exports remain
-scheduled for later days.
+A consultant-facing workspace for assessing SAP ECC Customer Master extracts before an
+S/4HANA migration. Through **Day 5**, it preserves source evidence, profiles data, runs
+14 deterministic business rules, calculates a transparent Migration Readiness Score,
+and evaluates CVI / Business Partner readiness.
 
-## What works today
+The application deliberately separates project-defined indicators from SAP truth. It
+does not call a local score an official SAP validation, and its demo CVI mappings must be
+replaced with client-approved target customizing on a real engagement.
 
-| Capability | Where |
-|---|---|
-| Health check | `GET /api/v1/health` |
-| Create project | `POST /api/v1/projects` |
-| List projects | `GET /api/v1/projects` |
-| Get project | `GET /api/v1/projects/{project_id}` |
-| Upload ECC file | `POST /api/v1/projects/{project_id}/files/ecc` |
-| List project files | `GET /api/v1/projects/{project_id}/files` |
-| Profile uploaded ECC file | `GET /api/v1/projects/{project_id}/files/{file_id}/profile` |
-| Run business-rule assessment | `POST /api/v1/projects/{project_id}/files/{file_id}/assessment` |
-| List persisted issues | `GET /api/v1/projects/{project_id}/files/{file_id}/issues` |
-| Migration readiness score | `GET /api/v1/projects/{project_id}/files/{file_id}/readiness` |
-| Expected ECC layout | `GET /api/v1/reference/ecc-schema` |
+## Day 5 in the product
 
-Interactive API docs run at `http://localhost:8000/docs`.
+![CVI readiness checks and account-group mappings](docs/assets/day5-cvi-readiness.png)
 
-The frontend adds an **Assessment & readiness** workspace at
-`/projects/:projectId/assessment`: it shows profiling, lets the consultant run assessment,
-lists persisted issues (filterable by severity) and renders the readiness score.
+![Migration readiness, profiling and issue traceability](docs/assets/day5-assessment-readiness.png)
 
-## Running it
+## What works
+
+| Day | Capability | Status |
+|---|---|---|
+| 1 | Migration project creation and resumable project list | Complete |
+| 2 | CSV/XLSX upload, parse safety and ECC schema validation | Complete |
+| 3 | Immutable/working row persistence and deterministic profiling | Complete |
+| 4 | `BR-001`–`BR-014`, persisted issues and Migration Readiness Score | Complete |
+| 5 | CVI / Business Partner readiness, BP role and account-group mapping checks | Complete |
+
+Day 5 adds six explicit CVI checks, source-row blockers, demo account-group mappings,
+BP category `2` (Organization) and customer role `FLCU00`. See the
+[CVI methodology](docs/07_cvi_business_partner_readiness.md).
+
+## Architecture
+
+```mermaid
+flowchart TD
+    UI["React + TypeScript"] --> API["FastAPI"]
+    API --> FILES["Original uploads"]
+    API --> DB[("PostgreSQL")]
+    API --> RULES["Profiling + BR engine"]
+    RULES --> DB
+    API --> CVI["CVI / BP readiness"]
+    CVI --> DB
+```
+
+The backend owns all scoring and checks; the UI only renders typed results. Accepted rows
+retain the spreadsheet/CSV row number consultants see, including gaps caused by blank
+rows. If database persistence fails after writing an upload, that original is removed so
+storage cannot accumulate an orphan. Read the [architecture notes](docs/ARCHITECTURE.md)
+for the full request flow.
+
+## Run locally
+
+Requirements: Docker Desktop or Docker Engine with Compose.
 
 ```bash
 cp .env.example .env
 docker compose up --build
 ```
 
-Then open `http://localhost:5173`.
+Open:
+
+- Application: <http://localhost:5173>
+- Interactive API documentation: <http://localhost:8000/docs>
+- Health check: <http://localhost:8000/api/v1/health>
 
 Migrations run automatically when the backend container starts.
 
-## Running the tests
+## Repeatable Day 5 demo
 
-Backend (in-memory SQLite, no running PostgreSQL needed):
-
-```bash
-docker compose run --rm backend pytest
-```
-
-Frontend (Vitest + React Testing Library, jsdom):
+With the stack running, create, upload and assess a CVI-ready project through public APIs:
 
 ```bash
-docker compose run --rm frontend npm test
+python scripts/demo_day5.py
 ```
 
-PostgreSQL remains the runtime database for Compose and production. The frontend also
-exposes `npm run typecheck` and `npm run build`.
+To demonstrate source-row blockers, unknown BP groupings and duplicate customer numbers:
 
-## Upload rules
+```bash
+python scripts/demo_day5.py --file sample-data/day5_cvi_blocked_customers.csv
+```
 
-A file is **rejected outright** when it is not `.xlsx` or `.csv`, is empty,
-exceeds 25 MB, has only headers and no data rows, or cannot be parsed.
+The command prints both readiness responses and a browser URL for the new project. The
+sample records are synthetic.
 
-A file is **stored with findings** when it reads correctly but its columns do not match
-the ECC Customer Master layout:
+## API surface
 
-| Finding | Severity |
+| Capability | Endpoint |
 |---|---|
-| `MISSING_REQUIRED_COLUMNS` | critical |
-| `DUPLICATE_COLUMNS` | high |
-| `BLANK_COLUMN_HEADER` | high |
-| `UNEXPECTED_COLUMNS` | medium |
+| Health | `GET /api/v1/health` |
+| Create/list/get projects | `POST/GET /api/v1/projects` |
+| Upload ECC file | `POST /api/v1/projects/{project_id}/files/ecc` |
+| List project files | `GET /api/v1/projects/{project_id}/files` |
+| Profile source file | `GET .../files/{file_id}/profile` |
+| Run assessment | `POST .../files/{file_id}/assessment` |
+| List persisted issues | `GET .../files/{file_id}/issues` |
+| Migration readiness | `GET .../files/{file_id}/readiness` |
+| CVI / BP readiness | `GET .../files/{file_id}/cvi-readiness` |
+| ECC/CVI references | `GET /api/v1/reference/ecc-schema`, `GET /api/v1/reference/cvi` |
 
-Required columns are `KUNNR`, `NAME1`, `ORT01`, `LAND1`, `KTOKD` and `BUKRS`. Header
-matching ignores case and surrounding spaces.
+## Validation and readiness correctness
 
-Uploaded originals are written to disk byte for byte and never rewritten.
+Required columns are `KUNNR`, `NAME1`, `ORT01`, `LAND1`, `KTOKD` and `BUKRS`. Schema
+validation detects missing, duplicate, blank and unexpected headers. The business-rule
+engine separately rejects blank values in every mandatory field, so a file with the
+right headers but empty city, country, account group or company code can no longer be
+reported as migration-ready.
 
-Every accepted source row is also persisted with separate `original_data` and
-`working_data` values. Profiling reads the immutable original values from the database.
+The Day 4 score combines schema conformity (20%), data completeness (25%), record
+readiness (35%) and issue-severity health (20%). Any critical issue or critical schema
+finding forces the `blocked` band and `migration_ready = false`, regardless of the
+numeric score. This is a transparent project methodology, not an official SAP score.
 
-Legacy `.xls` workbooks are not supported. Re-save them as `.xlsx` before uploading.
+## Quality and security
 
-## Profiling definitions
+```bash
+# Backend
+cd backend
+python -m venv .venv
+. .venv/bin/activate
+pip install -r requirements-dev.txt
+pytest --cov=app --cov-fail-under=90
+pip-audit -r requirements.txt
 
-- Missing values are null, empty or whitespace-only values.
-- Unique-value counts exclude missing values.
-- Field completeness is `non-missing values / total records × 100`.
-- Overall completeness uses every record-field cell in the uploaded file.
-- Exact duplicate records match on every original field and value. The first occurrence
-  is the representative; later identical occurrences are counted as duplicates.
-- Files uploaded before durable row persistence must be re-uploaded before profiling.
+# Frontend
+cd ../frontend
+npm ci
+npm test
+npm run build
+npm audit --audit-level=moderate
+```
 
-## Migration readiness (methodology v1)
+GitHub Actions runs backend tests and migrations, frontend tests/build, a 90% coverage
+gate, and Python/npm dependency audits. Dependabot checks Python, npm and Actions weekly.
 
-The readiness score is a **project-defined, transparent, deterministic** indicator
-inspired by common migration data-quality dimensions. **It is not an official SAP metric
-and must not be presented as one.** It is available only after a file has completed
-assessment (otherwise the endpoint returns `409 ASSESSMENT_REQUIRED`).
+Current local verification: **174 backend tests** and **29 frontend tests** pass; both
+dependency audits report zero known vulnerabilities.
 
-Four components are each scored `0.00`–`100.00` and combined by weight:
+## Roadmap after Day 5
 
-| Component | Weight | Basis |
-|---|---|---|
-| Schema conformity | 20% | `100` minus severity penalties per affected column for stored schema findings |
-| Data completeness | 25% | The deterministic profile's overall completeness percentage |
-| Record readiness | 35% | `records_ready / total_records × 100` |
-| Issue severity health | 20% | `100 − (weighted issue points / total_records)` |
+- Import client-approved target CVI customizing and number ranges.
+- Add field mapping, human review and approved transformations.
+- Produce S/4HANA load files with reconciliation and audit exports.
+- Add semantic duplicate suggestions and cited consultant assistance without automatic
+  data mutation.
 
-The overall score is the weighted sum of the unrounded components, rounded to two
-decimals. A **critical-blocker safety rule** overrides the number: `critical_blockers`
-counts critical persisted issues plus critical schema findings (a critical schema finding
-counts once regardless of column count). Any blocker forces the `blocked` band and
-`migration_ready = false`, so a high number can never hide a migration-blocking finding.
-Otherwise the band is `ready` (≥90), `minor_remediation` (≥75), `at_risk` (≥50) or
-`not_ready`. `migration_ready` is `true` only when the score is at least 90 **and** there
-are zero critical blockers.
-
-Readiness is read-only: it never runs assessment, never mutates data and adds no database
-table or migration.
-
-## Project status
-
-A project is created as `draft` and moves to `uploaded` once a readable ECC file is
-stored, including one that carries schema findings. A rejected file leaves the project
-in `draft`. Running assessment moves the project to `assessed`. The remaining values
-(`under_review`, `export_ready`, `completed`, `failed`) are reserved for later days and
-are not set yet.
+The original [functional requirements](docs/03_functional_requirements.md),
+[scope](docs/02_scope.md) and [data dictionary](docs/06_data_dictionary.md) remain the
+design baseline.

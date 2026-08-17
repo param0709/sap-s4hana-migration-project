@@ -95,8 +95,8 @@ def test_exact_duplicate_group_identifies_representative_and_duplicate_rows(
     assert profile["exact_duplicate_groups"] == 1
     assert profile["duplicate_groups"] == [
         {
-            "representative_row_number": 1,
-            "duplicate_row_numbers": [3],
+            "representative_row_number": 2,
+            "duplicate_row_numbers": [4],
             "record_count": 2,
             "duplicate_count": 1,
         }
@@ -110,7 +110,7 @@ def test_three_identical_rows_count_two_duplicates(client, project):
 
     assert profile["exact_duplicate_records"] == 2
     assert profile["exact_duplicate_groups"] == 1
-    assert profile["duplicate_groups"][0]["duplicate_row_numbers"] == [2, 3]
+    assert profile["duplicate_groups"][0]["duplicate_row_numbers"] == [3, 4]
 
 
 def test_unique_value_counts_exclude_null_and_whitespace(client, project):

@@ -118,12 +118,12 @@ def test_invalid_sample_scores(client, project, db_session):
     assert components["schema_conformity"]["score"] == 55
     assert components["data_completeness"]["score"] == 100
     assert components["record_readiness"]["score"] == 0
-    assert components["issue_severity"]["score"] == 90
-    assert result["score"] == 54.00
+    assert components["issue_severity"]["score"] == 60
+    assert result["score"] == 48.00
     assert result["band"] == ReadinessBand.BLOCKED
     assert result["migration_ready"] is False
-    # One critical schema finding (MISSING_REQUIRED_COLUMNS) + one critical BR-004.
-    assert result["critical_blockers"] == 2
+    # One critical schema finding plus BR-004 and mandatory-value BR-011/013/014.
+    assert result["critical_blockers"] == 5
 
 
 # 5. Critical blockers prevent ready even when the numeric score exceeds 90.

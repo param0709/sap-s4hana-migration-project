@@ -4,6 +4,7 @@ The original bytes are written to disk exactly as received and never rewritten,
 which satisfies FR-007 (original uploaded files remain unchanged).
 """
 import copy
+import logging
 import uuid
 
 from sqlalchemy import select
@@ -13,10 +14,12 @@ from app.config import settings
 from app.constants.enums import FileCategory, ProcessingStatus, RecordStatus
 from app.models import MigrationProject, MigrationRecord, UploadedFile
 from app.services import project_service
-from app.services.storage import store_original
+from app.services.storage import remove_original, store_original
 from app.validation.file_rules import validate_upload
 from app.validation.parser import ParsedFile, read_tabular_file
 from app.validation.schema_validator import validate_ecc_schema
+
+logger = logging.getLogger(__name__)
 
 
 def ingest_ecc_file(
@@ -68,6 +71,11 @@ def ingest_ecc_file(
         db.commit()
     except Exception:
         db.rollback()
+        try:
+            remove_original(storage_path)
+        except (OSError, ValueError):
+            # Cleanup must not hide the database failure that caused it.
+            logger.exception("Could not remove orphaned upload %s", storage_path)
         raise
 
     db.refresh(record)
@@ -89,12 +97,14 @@ def _persist_records(
             "id": uuid.uuid4(),
             "project_id": project_id,
             "uploaded_file_id": file_id,
-            "source_row_number": index,
+            "source_row_number": source_row_number,
             "original_data": copy.deepcopy(row),
             "working_data": copy.deepcopy(row),
             "record_status": RecordStatus.PENDING,
         }
-        for index, row in enumerate(parsed.rows, start=1)
+        for source_row_number, row in zip(
+            parsed.source_row_numbers, parsed.rows, strict=True
+        )
     ]
     db.execute(MigrationRecord.__table__.insert(), mappings)
 

@@ -1,4 +1,4 @@
-"""Unit tests for deterministic BR-001 through BR-010 evaluation."""
+"""Unit tests for deterministic BR-001 through BR-014 evaluation."""
 import copy
 from datetime import datetime
 
@@ -31,9 +31,9 @@ def rule_ids(findings) -> list[str]:
 
 def test_catalog_contains_the_documented_rules_in_order():
     assert [rule.rule_id for rule in RULES] == [
-        f"BR-{number:03d}" for number in range(1, 11)
+        f"BR-{number:03d}" for number in range(1, 15)
     ]
-    assert len({rule.rule_id for rule in RULES}) == 10
+    assert len({rule.rule_id for rule in RULES}) == 14
 
 
 def test_valid_indian_record_has_no_findings(valid_record):
@@ -52,6 +52,10 @@ def test_valid_indian_record_has_no_findings(valid_record):
         ("PSTLZ", "40005", "BR-007"),
         ("ERDAT", "2024-02-30", "BR-009"),
         ("LOEVM", "X", "BR-010"),
+        ("ORT01", "", "BR-011"),
+        ("LAND1", "", "BR-012"),
+        ("KTOKD", None, "BR-013"),
+        ("BUKRS", "   ", "BR-014"),
     ],
 )
 def test_each_record_level_rule_is_isolated(

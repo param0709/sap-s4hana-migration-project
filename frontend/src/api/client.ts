@@ -1,5 +1,6 @@
 import type {
   AssessmentSummary,
+  CviReadiness,
   EccSchemaReference,
   FileIssues,
   FileProfile,
@@ -112,4 +113,9 @@ export const api = {
   // distinguish "assessment not run yet" from a genuine load failure.
   getReadiness: (projectId: string, fileId: string) =>
     request<Readiness>(`/projects/${projectId}/files/${fileId}/readiness`),
+
+  getCviReadiness: (projectId: string, fileId: string) =>
+    request<CviReadiness>(
+      `/projects/${projectId}/files/${fileId}/cvi-readiness`,
+    ),
 };

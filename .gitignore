@@ -23,6 +23,7 @@ backend/storage/
 node_modules/
 dist/
 .vite/
+*.tsbuildinfo
 npm-debug.log*
 yarn-error.log*
 

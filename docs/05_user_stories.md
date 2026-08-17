@@ -92,3 +92,16 @@ As a consultant, I want to ask questions about the migration.
 - Data questions use read-only SQL.
 - Sources and query evidence are displayed.
 - Unsupported questions return a clear limitation.
+
+## US-010 — Review CVI Readiness
+
+As a migration consultant, I want to review CVI and Business Partner prerequisites so
+that I can resolve conversion blockers before preparing a target load.
+
+### Acceptance Criteria
+
+- The result shows the BP category and required customer role.
+- ECC account groups show their configured BP grouping or an unmapped blocker.
+- Identity, address, company-code, uniqueness and source-assessment checks are explicit.
+- Every failed check includes the original spreadsheet/CSV rows.
+- The screen clearly states that the result is not an official SAP validation.
