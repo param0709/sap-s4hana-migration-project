@@ -4,6 +4,7 @@
 ![Day 5](https://img.shields.io/badge/20--day_build-Day_5_complete-0e5c68)
 ![Python](https://img.shields.io/badge/Python-3.12-3776ab)
 ![React](https://img.shields.io/badge/React-18.3-149eca)
+[![Live demo](https://img.shields.io/badge/live_demo-open-1d6b4a)](https://sap-s4hana-readiness-demo.prm234.chatgpt.site)
 
 A consultant-facing workspace for assessing SAP ECC Customer Master extracts before an
 S/4HANA migration. Through **Day 5**, it preserves source evidence, profiles data, runs
@@ -71,6 +72,8 @@ Open:
 Migrations run automatically when the backend container starts.
 
 ## Repeatable Day 5 demo
+
+[Open the interactive Day 5 walkthrough](https://sap-s4hana-readiness-demo.prm234.chatgpt.site) to compare the ready and blocked synthetic scenarios without installing the stack.
 
 With the stack running, create, upload and assess a CVI-ready project through public APIs:
 
