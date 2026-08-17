@@ -77,7 +77,7 @@ def _normalise_rows(
     rows: Iterable[Sequence[Any]],
     keys: list[str],
     file_name: str,
-) -> list[dict[str, Any]]:
+) -> tuple[list[dict[str, Any]], list[int]]:
     """Validate row width and map nonblank rows onto duplicate-safe keys.
 
     Short rows are padded with nulls. Empty cells beyond the header width are
@@ -86,8 +86,11 @@ def _normalise_rows(
     """
     width = len(keys)
     records: list[dict[str, Any]] = []
+    source_row_numbers: list[int] = []
 
-    for source_row_number, source_row in enumerate(rows, start=1):
+    # Row 1 is the source header. Starting at 2 preserves the row number a
+    # consultant sees in Excel or a CSV editor, including gaps from blank rows.
+    for source_row_number, source_row in enumerate(rows, start=2):
         row = list(source_row)
         if _is_blank_row(row):
             continue
@@ -109,8 +112,9 @@ def _normalise_rows(
             for index, key in enumerate(keys)
         }
         records.append(record)
+        source_row_numbers.append(source_row_number)
 
-    return records
+    return records, source_row_numbers
 
 
 @dataclass(frozen=True)
@@ -120,6 +124,7 @@ class ParsedFile:
     headers: list[str]
     row_count: int
     rows: list[dict[str, Any]] = field(default_factory=list)
+    source_row_numbers: list[int] = field(default_factory=list)
 
     @property
     def column_count(self) -> int:
@@ -156,8 +161,15 @@ def _read_csv(content: bytes, file_name: str) -> ParsedFile:
         )
 
     headers = [str(value) for value in all_rows[0]]
-    rows = _normalise_rows(all_rows[1:], build_record_keys(headers), file_name)
-    return ParsedFile(headers=headers, row_count=len(rows), rows=rows)
+    rows, source_row_numbers = _normalise_rows(
+        all_rows[1:], build_record_keys(headers), file_name
+    )
+    return ParsedFile(
+        headers=headers,
+        row_count=len(rows),
+        rows=rows,
+        source_row_numbers=source_row_numbers,
+    )
 
 
 def _read_excel(content: bytes, file_name: str) -> ParsedFile:
@@ -187,8 +199,15 @@ def _read_excel(content: bytes, file_name: str) -> ParsedFile:
         header_cells.pop()
 
     headers = ["" if value is None else str(value) for value in header_cells]
-    rows = _normalise_rows(all_rows[1:], build_record_keys(headers), file_name)
-    return ParsedFile(headers=headers, row_count=len(rows), rows=rows)
+    rows, source_row_numbers = _normalise_rows(
+        all_rows[1:], build_record_keys(headers), file_name
+    )
+    return ParsedFile(
+        headers=headers,
+        row_count=len(rows),
+        rows=rows,
+        source_row_numbers=source_row_numbers,
+    )
 
 
 def read_tabular_file(content: bytes, file_name: str, extension: str) -> ParsedFile:

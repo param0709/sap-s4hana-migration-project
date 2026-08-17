@@ -70,3 +70,12 @@
 - FR-039: Users shall ask quantitative questions about migration data.
 - FR-040: Generated database queries shall be read-only.
 - FR-041: Destructive SQL commands shall be blocked.
+
+## CVI and Business Partner Readiness
+
+- FR-042: CVI readiness shall require a completed deterministic assessment.
+- FR-043: ECC account groups shall be checked against explicit target BP groupings.
+- FR-044: BP identity, address and company-code prerequisites shall be checked.
+- FR-045: External customer numbers shall be checked for uniqueness.
+- FR-046: Failed CVI checks shall identify the original source rows.
+- FR-047: Project-defined CVI results shall be labelled as non-official SAP pre-checks.

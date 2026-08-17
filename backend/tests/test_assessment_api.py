@@ -123,7 +123,7 @@ def test_get_issues_returns_complete_persisted_details(client, project):
     }
     assert email_issue["project_id"] == project["id"]
     assert email_issue["uploaded_file_id"] == uploaded["id"]
-    assert email_issue["source_row_number"] == 2
+    assert email_issue["source_row_number"] == 3
     assert email_issue["issue_type"] == "business_rule"
     assert email_issue["rule_name"] == "Email format"
     assert email_issue["field_name"] == "SMTP_ADDR"
@@ -142,7 +142,7 @@ def test_issues_ordered_by_source_row_then_rule_id(client, project):
 
     body = client.get(_issues_url(project["id"], uploaded["id"])).json()
 
-    assert [item["source_row_number"] for item in body["items"]] == [1, 2]
+    assert [item["source_row_number"] for item in body["items"]] == [2, 3]
     assert [item["rule_id"] for item in body["items"]] == ["BR-010", "BR-001"]
 
 

@@ -59,7 +59,8 @@ def test_issue_persists_with_record_file_and_project_links(
     assert issue.project_id == record.project_id
     assert issue.uploaded_file_id == record.uploaded_file_id
     assert issue.migration_record_id == record.id
-    assert issue.source_row_number == 1
+    # Row 1 is the CSV header; the first persisted data record is source row 2.
+    assert issue.source_row_number == 2
     assert issue.issue_type == IssueType.BUSINESS_RULE
     assert issue.issue_status == IssueStatus.OPEN
     assert issue.current_value == "bad-email"

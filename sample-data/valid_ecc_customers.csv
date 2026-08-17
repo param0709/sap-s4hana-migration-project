@@ -1,4 +1,4 @@
 KUNNR,NAME1,ORT01,LAND1,KTOKD,BUKRS,STCD3,SMTP_ADDR
 00001001,Alpha Traders Pvt Ltd,Mumbai,IN,ZDOM,1000,27ABCDE1234F1Z5,sales@alpha.in
 00001002,Beta Retail Limited,Delhi,IN,ZDOM,1000,07ABCDE1234F1Z5,info@beta.in
-00001003,Global Imports,Dubai,AE,ZINT,1000,,contact@global.ae
+00001003,Global Imports,Dubai,AE,ZEXP,1000,,contact@global.ae

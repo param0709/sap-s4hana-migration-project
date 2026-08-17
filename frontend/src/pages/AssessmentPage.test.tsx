@@ -6,6 +6,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AssessmentPage } from "./AssessmentPage";
 import { api, ApiError } from "../api/client";
 import {
+  makeCviBlocked,
+  makeCviReady,
   makeBlockedReadiness,
   makeFile,
   makeIssue,
@@ -24,6 +26,7 @@ vi.mock("../api/client", async (importOriginal) => {
       getProfile: vi.fn(),
       getIssues: vi.fn(),
       getReadiness: vi.fn(),
+      getCviReadiness: vi.fn(),
       runAssessment: vi.fn(),
     },
   };
@@ -43,6 +46,12 @@ function renderPage(projectId = "p1") {
 
 const assessmentRequiredError = new ApiError(
   "Run assessment on this file before requesting its readiness score.",
+  409,
+  "ASSESSMENT_REQUIRED",
+);
+
+const cviAssessmentRequiredError = new ApiError(
+  "Run assessment on this file before requesting CVI readiness.",
   409,
   "ASSESSMENT_REQUIRED",
 );
@@ -78,6 +87,7 @@ beforeEach(() => {
     items: [],
   });
   vi.mocked(api.getReadiness).mockResolvedValue(makeReadyReadiness());
+  vi.mocked(api.getCviReadiness).mockResolvedValue(makeCviReady());
 });
 
 describe("AssessmentPage", () => {
@@ -89,19 +99,20 @@ describe("AssessmentPage", () => {
       await screen.findByText(/MIG-2026-0001 · Nova Retail Pvt Ltd/),
     ).toBeInTheDocument();
     // Profiling metric visible.
-    expect(await screen.findByText("Records")).toBeInTheDocument();
+    expect((await screen.findAllByText("Records")).length).toBeGreaterThan(0);
     expect(api.getProfile).toHaveBeenCalledWith("p1", "f1");
   });
 
   // 2. Before assessment: profiling visible, Run assessment enabled.
   it("shows profiling and an enabled Run assessment button before assessment", async () => {
     vi.mocked(api.getReadiness).mockRejectedValue(assessmentRequiredError);
+    vi.mocked(api.getCviReadiness).mockRejectedValue(cviAssessmentRequiredError);
 
     renderPage();
 
     expect(await screen.findByText("Assessment not run")).toBeInTheDocument();
     // Profiling still rendered despite readiness not being available.
-    expect(screen.getByText("Records")).toBeInTheDocument();
+    expect(screen.getAllByText("Records").length).toBeGreaterThan(0);
     const button = screen.getByRole("button", { name: /run assessment/i });
     expect(button).toBeEnabled();
   });
@@ -112,6 +123,9 @@ describe("AssessmentPage", () => {
     vi.mocked(api.getReadiness)
       .mockRejectedValueOnce(assessmentRequiredError)
       .mockResolvedValue(makeReadyReadiness());
+    vi.mocked(api.getCviReadiness)
+      .mockRejectedValueOnce(cviAssessmentRequiredError)
+      .mockResolvedValue(makeCviReady());
     vi.mocked(api.getIssues)
       .mockResolvedValueOnce({
         project_id: "p1",
@@ -140,7 +154,9 @@ describe("AssessmentPage", () => {
     const button = await screen.findByRole("button", { name: /run assessment/i });
     await user.click(button);
 
-    expect(await screen.findByText("Assessment complete.")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Assessment and CVI readiness refreshed."),
+    ).toBeInTheDocument();
     expect(api.runAssessment).toHaveBeenCalledWith("p1", "f1");
     // Readiness meter now present.
     expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "98.96");
@@ -158,6 +174,29 @@ describe("AssessmentPage", () => {
     expect(meter.getAttribute("aria-label")).toMatch(/Ready/);
     expect(screen.getByText("Ready")).toBeInTheDocument();
     expect(screen.getByText("Yes")).toBeInTheDocument();
+  });
+
+  it("renders a ready Day 5 CVI result and account-group mapping", async () => {
+    renderPage();
+
+    expect(await screen.findByText("CVI ready")).toBeInTheDocument();
+    expect(screen.getByText("CVI-001")).toBeInTheDocument();
+    expect(screen.getByText("FLCU00")).toBeInTheDocument();
+    expect(screen.getAllByText("ZEXP")).toHaveLength(2);
+  });
+
+  it("surfaces failed CVI checks and their true source rows", async () => {
+    vi.mocked(api.getCviReadiness).mockResolvedValue(makeCviBlocked());
+
+    renderPage();
+
+    expect(await screen.findByText("CVI blocked")).toBeInTheDocument();
+    const cviAlert = screen
+      .getAllByRole("alert")
+      .find((alert) => /1 CVI check requires attention/i.test(alert.textContent ?? ""));
+    expect(cviAlert).toBeInTheDocument();
+    expect(screen.getByText(/Unmapped/)).toHaveTextContent(/ZUNK.*rows 4/i);
+    expect(screen.getByText(/Rows: 4/)).toHaveTextContent(/Approve the missing target mapping/i);
   });
 
   // 4b. Blocked readiness surfaces a prominent critical-blocker alert.
@@ -268,7 +307,7 @@ describe("AssessmentPage", () => {
 
     expect(await screen.findByText("Readiness unavailable")).toBeInTheDocument();
     // Profile metrics remain visible (labels unique to the metric strip).
-    expect(screen.getByText("Records")).toBeInTheDocument();
+    expect(screen.getAllByText("Records").length).toBeGreaterThan(0);
     expect(screen.getByText("Missing values")).toBeInTheDocument();
   });
 
@@ -349,6 +388,7 @@ describe("AssessmentPage", () => {
   // 13. An unassessed file is never presented as having passed.
   it("keeps the assessment-required state and never claims a pass", async () => {
     vi.mocked(api.getReadiness).mockRejectedValue(assessmentRequiredError);
+    vi.mocked(api.getCviReadiness).mockRejectedValue(cviAssessmentRequiredError);
 
     renderPage();
 
@@ -357,6 +397,7 @@ describe("AssessmentPage", () => {
     expect(screen.getByRole("button", { name: /run assessment/i })).toBeEnabled();
     expect(screen.queryByText("No issues found")).not.toBeInTheDocument();
     expect(screen.queryByText(/Every assessed record passed/i)).not.toBeInTheDocument();
+    expect(screen.getAllByText("Assessment required").length).toBeGreaterThan(0);
   });
 
   // 14. Switching source files must not leak the previous file's issue state.

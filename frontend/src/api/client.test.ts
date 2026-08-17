@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { api, ApiError } from "./client";
 import {
+  makeCviReady,
   makeIssue,
   makeProfile,
   makeReadyReadiness,
@@ -91,6 +92,20 @@ describe("api client", () => {
     expect(result.score).toBe(98.96);
     expect(result.band).toBe("ready");
     expect(result.components.record_readiness.weight).toBe(0.35);
+  });
+
+  it("requests the Day 5 CVI readiness endpoint", async () => {
+    const readiness = makeCviReady();
+    fetchMock.mockResolvedValue(fakeResponse(readiness, true, 200));
+
+    const result = await api.getCviReadiness("p1", "f1");
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      `${BASE}/projects/p1/files/f1/cvi-readiness`,
+      undefined,
+    );
+    expect(result.cvi_ready).toBe(true);
+    expect(result.bp_category.code).toBe("2");
   });
 
   // ASSESSMENT_REQUIRED must be distinguishable from a generic failure.

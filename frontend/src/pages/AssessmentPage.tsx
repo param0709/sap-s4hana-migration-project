@@ -5,6 +5,7 @@ import { api, ApiError } from "../api/client";
 import { Banner } from "../components/Banner";
 import { SeverityPill } from "../components/StatusPill";
 import type {
+  CviReadiness,
   FileProfile,
   IssueSeverity,
   IssueValue,
@@ -68,6 +69,7 @@ const DATA_UNAVAILABLE_CODES = new Set([
   "PROFILE_DATA_UNAVAILABLE",
   "ASSESSMENT_DATA_UNAVAILABLE",
   "READINESS_DATA_UNAVAILABLE",
+  "CVI_DATA_UNAVAILABLE",
 ]);
 
 const ISSUES_UNAVAILABLE_BODY =
@@ -128,11 +130,14 @@ export function AssessmentPage() {
   const [profile, setProfile] = useState<FileProfile | null>(null);
   const [issuesState, setIssuesState] = useState<IssuesState>({ status: "loading" });
   const [readiness, setReadiness] = useState<Readiness | null>(null);
+  const [cviReadiness, setCviReadiness] = useState<CviReadiness | null>(null);
   const [assessmentRequired, setAssessmentRequired] = useState(false);
+  const [cviAssessmentRequired, setCviAssessmentRequired] = useState(false);
 
   const [contextError, setContextError] = useState<string | null>(null);
   const [profileError, setProfileError] = useState<string | null>(null);
   const [readinessError, setReadinessError] = useState<string | null>(null);
+  const [cviError, setCviError] = useState<string | null>(null);
   const [assessmentError, setAssessmentError] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
 
@@ -154,11 +159,14 @@ export function AssessmentPage() {
       setLoadingFile(true);
       setProfile(null);
       setReadiness(null);
+      setCviReadiness(null);
       setProfileError(null);
       setReadinessError(null);
+      setCviError(null);
       setAssessmentError(null);
       setFeedback(null);
       setAssessmentRequired(false);
+      setCviAssessmentRequired(false);
       setIssuesState({ status: "loading" });
       setSeverityFilter("all");
 
@@ -210,6 +218,23 @@ export function AssessmentPage() {
           if (isDataUnavailable(caught)) dataUnavailable = true;
           setReadinessError(
             errorMessage(caught, "The readiness score could not be loaded."),
+          );
+        }
+      }
+
+      try {
+        const loaded = await api.getCviReadiness(projectId, fileId);
+        if (!isCurrent()) return;
+        setCviReadiness(loaded);
+      } catch (caught) {
+        if (!isCurrent()) return;
+        setCviReadiness(null);
+        if (caught instanceof ApiError && caught.code === "ASSESSMENT_REQUIRED") {
+          setCviAssessmentRequired(true);
+        } else {
+          if (isDataUnavailable(caught)) dataUnavailable = true;
+          setCviError(
+            errorMessage(caught, "The CVI readiness pre-check could not be loaded."),
           );
         }
       }
@@ -274,9 +299,10 @@ export function AssessmentPage() {
       } catch {
         // Non-fatal: the status pill may lag, the assessment still ran.
       }
-      const [issueResult, readinessResult] = await Promise.allSettled([
+      const [issueResult, readinessResult, cviResult] = await Promise.allSettled([
         api.getIssues(projectId, selectedFileId),
         api.getReadiness(projectId, selectedFileId),
+        api.getCviReadiness(projectId, selectedFileId),
       ]);
       if (issueResult.status === "fulfilled") {
         setIssuesState({ status: "loaded", items: issueResult.value.items });
@@ -293,7 +319,17 @@ export function AssessmentPage() {
         setAssessmentRequired(false);
         setReadinessError(null);
       }
-      setFeedback("Assessment complete.");
+      if (cviResult.status === "fulfilled") {
+        setCviReadiness(cviResult.value);
+        setCviAssessmentRequired(false);
+        setCviError(null);
+      } else {
+        setCviReadiness(null);
+        setCviError(
+          errorMessage(cviResult.reason, "The CVI readiness pre-check could not be loaded."),
+        );
+      }
+      setFeedback("Assessment and CVI readiness refreshed.");
     } catch (caught) {
       if (isDataUnavailable(caught)) setIssuesState({ status: "unavailable" });
       setAssessmentError(
@@ -342,8 +378,8 @@ export function AssessmentPage() {
       </p>
       <h1 className="page__title">Assessment &amp; readiness</h1>
       <p className="page__lede">
-        Review the profiling profile, run deterministic business-rule assessment and read the
-        project&apos;s Migration Readiness Score for the selected ECC extract.
+        Profile ECC data, run deterministic business-rule assessment, review the Migration
+        Readiness Score and inspect Day 5 CVI readiness for the selected extract.
       </p>
 
       {files.length === 0 ? (
@@ -400,6 +436,13 @@ export function AssessmentPage() {
             running={running}
             processingStatus={selectedFile?.processing_status ?? null}
             onRunAssessment={runAssessment}
+          />
+
+          <CviReadinessSection
+            readiness={cviReadiness}
+            assessmentRequired={cviAssessmentRequired}
+            error={cviError}
+            loading={loadingFile}
           />
 
           <ProfileSection profile={profile} error={profileError} loading={loadingFile} />
@@ -584,6 +627,144 @@ function ReadinessSection({
               health (20%). Any critical blocker forces a <strong>blocked</strong> band. This is a
               project-defined deterministic readiness indicator, not an official SAP score.
             </p>
+          </>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function CviReadinessSection({
+  readiness,
+  assessmentRequired,
+  error,
+  loading,
+}: {
+  readiness: CviReadiness | null;
+  assessmentRequired: boolean;
+  error: string | null;
+  loading: boolean;
+}) {
+  return (
+    <div className="panel cvi-panel">
+      <div className="panel__body">
+        <div className="cvi__heading">
+          <div>
+            <p className="eyebrow">Day 5</p>
+            <h2 className="section-title">CVI &amp; Business Partner readiness</h2>
+          </div>
+          {readiness ? (
+            <span className={`pill cvi-status cvi-status--${readiness.status}`}>
+              {readiness.status === "ready" ? "CVI ready" : "CVI blocked"}
+            </span>
+          ) : null}
+        </div>
+
+        {loading && !readiness ? (
+          <p className="cell-sub">Loading CVI readiness&hellip;</p>
+        ) : assessmentRequired ? (
+          <div className="assessment-cta">
+            <p className="assessment-cta__title">Assessment required</p>
+            <p className="assessment-cta__body">
+              Run the deterministic assessment above before evaluating CVI and Business Partner
+              readiness.
+            </p>
+          </div>
+        ) : error ? (
+          <Banner tone="error" title="CVI readiness unavailable" body={error} />
+        ) : readiness ? (
+          <>
+            {readiness.status === "blocked" ? (
+              <div className="blocker-callout" role="alert">
+                <p className="blocker-callout__title">
+                  {readiness.failed_checks} CVI check
+                  {readiness.failed_checks === 1 ? " requires" : "s require"} attention
+                </p>
+                <p className="blocker-callout__body">
+                  Resolve the failed checks before converting these customers to Business
+                  Partners.
+                </p>
+              </div>
+            ) : null}
+
+            <div className="metrics metrics--six cvi__metrics">
+              <Metric label="Target" value="Business Partner" />
+              <Metric
+                label="BP category"
+                value={`${readiness.bp_category.code} · ${readiness.bp_category.label}`}
+              />
+              <Metric label="Required role" value={readiness.required_bp_roles.join(", ")} />
+              <Metric label="Ready records" value={`${readiness.records_ready}/${readiness.total_records}`} />
+              <Metric label="Blocked records" value={readiness.records_blocked} />
+              <Metric label="Critical checks" value={readiness.critical_blockers} />
+            </div>
+
+            <div className="cvi__split">
+              <div>
+                <h3 className="section-title">Account-group mapping</h3>
+                {readiness.mapped_account_groups.length > 0 ? (
+                  <div className="table-scroll">
+                    <table className="table table--compact">
+                      <thead>
+                        <tr>
+                          <th>ECC account group</th>
+                          <th>BP grouping</th>
+                          <th className="numeric">Records</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {readiness.mapped_account_groups.map((mapping) => (
+                          <tr key={mapping.ecc_account_group}>
+                            <td className="code">{mapping.ecc_account_group}</td>
+                            <td className="code">{mapping.bp_grouping}</td>
+                            <td className="numeric">{mapping.record_count}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <p className="cell-sub">No account groups are mapped.</p>
+                )}
+                {readiness.unmapped_account_groups.map((mapping) => (
+                  <p className="cvi__unmapped" key={mapping.ecc_account_group}>
+                    Unmapped <span className="code">{mapping.ecc_account_group}</span> · rows{" "}
+                    {mapping.source_rows.join(", ")}
+                  </p>
+                ))}
+              </div>
+
+              <div>
+                <h3 className="section-title">Pre-checks</h3>
+                <div className="cvi-checks">
+                  {readiness.checks.map((check) => (
+                    <article
+                      className={`cvi-check cvi-check--${check.status}`}
+                      key={check.check_id}
+                    >
+                      <div className="cvi-check__head">
+                        <span className="code cell-strong">{check.check_id}</span>
+                        <span className={`pill cvi-check__status cvi-check__status--${check.status}`}>
+                          {check.status}
+                        </span>
+                        {check.status === "failed" ? (
+                          <SeverityPill severity={check.severity} />
+                        ) : null}
+                      </div>
+                      <p className="cvi-check__name">{check.name}</p>
+                      <p className="cell-sub">{check.explanation}</p>
+                      {check.status === "failed" ? (
+                        <p className="cell-sub">
+                          Rows: {check.affected_source_rows.join(", ")} · {check.suggested_action}
+                        </p>
+                      ) : null}
+                    </article>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <p className="methodology-note">{readiness.disclaimer}</p>
           </>
         ) : null}
       </div>

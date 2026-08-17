@@ -105,7 +105,7 @@ def test_persisted_issue_contains_complete_rule_and_record_context(
     )
     assert issue.project_id == uuid.UUID(project["id"])
     assert issue.migration_record_id == _records(db_session, uploaded["id"])[1].id
-    assert issue.source_row_number == 2
+    assert issue.source_row_number == 3
     assert issue.field_name == "SMTP_ADDR"
     assert issue.current_value == "bad-email"
     assert issue.reason
@@ -209,7 +209,7 @@ def test_duplicate_rule_is_persisted_for_every_affected_record(
         for issue in _issues(db_session, uploaded["id"])
         if issue.rule_id == "BR-008"
     ]
-    assert [issue.source_row_number for issue in duplicate_issues] == [1, 2]
+    assert [issue.source_row_number for issue in duplicate_issues] == [2, 3]
 
 
 def test_unknown_or_cross_project_file_returns_none(client, project, db_session):

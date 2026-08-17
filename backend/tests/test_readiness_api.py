@@ -96,12 +96,12 @@ def test_readiness_invalid_sample_blocked(client, project):
 
     body = client.get(_readiness_url(project["id"], uploaded["id"])).json()
 
-    assert body["score"] == 54.00
+    assert body["score"] == 48.00
     assert body["band"] == "blocked"
     assert body["migration_ready"] is False
-    assert body["critical_blockers"] == 2
+    assert body["critical_blockers"] == 5
     assert body["components"]["schema_conformity"]["score"] == 55
-    assert body["components"]["issue_severity"]["score"] == 90
+    assert body["components"]["issue_severity"]["score"] == 60
 
 
 def test_readiness_unknown_file_returns_404(client, project):

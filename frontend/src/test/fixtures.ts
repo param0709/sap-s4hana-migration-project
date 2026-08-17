@@ -1,4 +1,5 @@
 import type {
+  CviReadiness,
   FileProfile,
   MigrationIssue,
   Project,
@@ -129,6 +130,76 @@ export function makeBlockedReadiness(overrides: Partial<Readiness> = {}): Readin
     },
     ...overrides,
   };
+}
+
+export function makeCviReady(overrides: Partial<CviReadiness> = {}): CviReadiness {
+  return {
+    project_id: "p1",
+    uploaded_file_id: "f1",
+    methodology_version: "v1",
+    target_object: "SAP S/4HANA Business Partner",
+    disclaimer:
+      "Project-defined pre-check only; validate mappings against target SAP CVI customizing.",
+    status: "ready",
+    cvi_ready: true,
+    total_records: 3,
+    records_ready: 3,
+    records_blocked: 0,
+    failed_checks: 0,
+    critical_blockers: 0,
+    bp_category: { code: "2", label: "Organization" },
+    required_bp_roles: ["FLCU00"],
+    mapped_account_groups: [
+      { ecc_account_group: "ZDOM", bp_grouping: "ZDOM", record_count: 2 },
+      { ecc_account_group: "ZEXP", bp_grouping: "ZEXP", record_count: 1 },
+    ],
+    unmapped_account_groups: [],
+    checks: [
+      {
+        check_id: "CVI-001",
+        name: "Account group to BP grouping",
+        status: "passed",
+        severity: "critical",
+        affected_records: 0,
+        affected_source_rows: [],
+        explanation: "Every ECC account group has a target BP grouping.",
+        suggested_action: "No action required.",
+      },
+    ],
+    ...overrides,
+  };
+}
+
+export function makeCviBlocked(
+  overrides: Partial<CviReadiness> = {},
+): CviReadiness {
+  return makeCviReady({
+    status: "blocked",
+    cvi_ready: false,
+    records_ready: 2,
+    records_blocked: 1,
+    failed_checks: 1,
+    critical_blockers: 1,
+    mapped_account_groups: [
+      { ecc_account_group: "ZDOM", bp_grouping: "ZDOM", record_count: 2 },
+    ],
+    unmapped_account_groups: [
+      { ecc_account_group: "ZUNK", record_count: 1, source_rows: [4] },
+    ],
+    checks: [
+      {
+        check_id: "CVI-001",
+        name: "Account group to BP grouping",
+        status: "failed",
+        severity: "critical",
+        affected_records: 1,
+        affected_source_rows: [4],
+        explanation: "An ECC account group has no target BP grouping.",
+        suggested_action: "Approve the missing target mapping.",
+      },
+    ],
+    ...overrides,
+  });
 }
 
 export function makeIssue(overrides: Partial<MigrationIssue> = {}): MigrationIssue {

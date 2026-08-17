@@ -798,6 +798,107 @@ a:hover {
   max-width: 80ch;
 }
 
+/* ---------- Day 5 CVI / Business Partner ---------- */
+
+.cvi-panel {
+  border-top: 3px solid var(--signal);
+}
+
+.cvi__heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.cvi__heading .eyebrow {
+  color: var(--signal);
+}
+
+.cvi-status--ready,
+.cvi-check__status--passed {
+  color: var(--ok);
+}
+
+.cvi-status--blocked,
+.cvi-check__status--failed {
+  color: var(--critical);
+}
+
+.cvi__metrics {
+  margin: 22px -22px 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.cvi__metrics .metric__value {
+  font-size: 17px;
+  overflow-wrap: normal;
+}
+
+.cvi__split {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  gap: 28px;
+  margin-top: 26px;
+}
+
+.table--compact th,
+.table--compact td {
+  padding-right: 10px;
+  padding-left: 10px;
+}
+
+.cvi__unmapped {
+  margin: 10px 0 0;
+  padding: 9px 11px;
+  border-left: 3px solid var(--critical);
+  background: #fbf1f0;
+  color: var(--critical);
+  font-size: 12.5px;
+}
+
+.cvi-checks {
+  display: grid;
+  gap: 8px;
+}
+
+.cvi-check {
+  padding: 12px 14px;
+  border: 1px solid var(--rule);
+  border-left-width: 3px;
+  border-radius: var(--step);
+  background: var(--panel-sunken);
+}
+
+.cvi-check--passed {
+  border-left-color: var(--ok);
+}
+
+.cvi-check--failed {
+  border-left-color: var(--critical);
+}
+
+.cvi-check__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.cvi-check__status {
+  margin-left: auto;
+}
+
+.cvi-check__name {
+  margin: 8px 0 2px;
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.cvi-check p:last-child {
+  margin-bottom: 0;
+}
+
 /* ---------- Band pills ---------- */
 
 .pill--band-ready { color: var(--ok); }
@@ -903,6 +1004,9 @@ a:hover {
   .readiness__components {
     grid-template-columns: 1fr;
   }
+  .cvi__split {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 720px) {
@@ -932,6 +1036,11 @@ a:hover {
   }
   .filter-group {
     margin-left: 0;
+  }
+  .cvi__heading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 8px;
   }
 }
 

@@ -193,3 +193,48 @@ export interface Readiness {
   total_issues: number;
   components: ReadinessComponents;
 }
+
+// ---------- Day 5 CVI / Business Partner readiness ----------
+
+export interface CviCheck {
+  check_id: string;
+  name: string;
+  status: "passed" | "failed";
+  severity: IssueSeverity;
+  affected_records: number;
+  affected_source_rows: number[];
+  explanation: string;
+  suggested_action: string;
+}
+
+export interface AccountGroupMapping {
+  ecc_account_group: string;
+  bp_grouping: string;
+  record_count: number;
+}
+
+export interface UnmappedAccountGroup {
+  ecc_account_group: string;
+  record_count: number;
+  source_rows: number[];
+}
+
+export interface CviReadiness {
+  project_id: string;
+  uploaded_file_id: string;
+  methodology_version: "v1";
+  target_object: string;
+  disclaimer: string;
+  status: "ready" | "blocked";
+  cvi_ready: boolean;
+  total_records: number;
+  records_ready: number;
+  records_blocked: number;
+  failed_checks: number;
+  critical_blockers: number;
+  bp_category: { code: string; label: string };
+  required_bp_roles: string[];
+  mapped_account_groups: AccountGroupMapping[];
+  unmapped_account_groups: UnmappedAccountGroup[];
+  checks: CviCheck[];
+}

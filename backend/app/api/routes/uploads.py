@@ -4,14 +4,24 @@ import uuid
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
 
+from app.constants.cvi import (
+    ACCOUNT_GROUP_TO_BP_GROUPING,
+    BP_CATEGORY_CODE,
+    BP_CATEGORY_LABEL,
+    CVI_DISCLAIMER,
+    REQUIRED_BP_ROLES,
+    TARGET_OBJECT,
+)
 from app.constants.ecc_schema import COLUMN_DESCRIPTIONS, OPTIONAL_COLUMNS, REQUIRED_COLUMNS
 from app.database import get_db
 from app.schemas.assessment import AssessmentSummaryRead, FileIssuesRead
+from app.schemas.cvi import CviReadinessRead
 from app.schemas.profile import FileProfileRead
 from app.schemas.readiness import ReadinessRead
 from app.schemas.upload import UploadedFileRead
 from app.services import (
     assessment_service,
+    cvi_service,
     file_service,
     profiling_service,
     project_service,
@@ -83,7 +93,7 @@ def run_assessment(
     file_id: uuid.UUID,
     db: Session = Depends(get_db),
 ) -> AssessmentSummaryRead:
-    """Run deterministic BR-001–BR-010 assessment and persist record-level issues."""
+    """Run deterministic BR-001–BR-014 assessment and persist record-level issues."""
     try:
         summary = assessment_service.assess_file(db, project_id, file_id)
     except assessment_service.AssessmentDataUnavailableError as exc:
@@ -141,6 +151,31 @@ def get_file_readiness(
     return ReadinessRead.model_validate(result)
 
 
+@router.get("/{file_id}/cvi-readiness", response_model=CviReadinessRead)
+def get_cvi_readiness(
+    project_id: uuid.UUID,
+    file_id: uuid.UUID,
+    db: Session = Depends(get_db),
+) -> CviReadinessRead:
+    """Return the Day 5 CVI and Business Partner readiness pre-check."""
+    try:
+        result = cvi_service.calculate_cvi_readiness(db, project_id, file_id)
+    except cvi_service.CviDataUnavailableError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"code": "CVI_DATA_UNAVAILABLE", "message": str(exc)},
+        ) from exc
+    except cvi_service.CviAssessmentRequiredError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"code": "ASSESSMENT_REQUIRED", "message": str(exc)},
+        ) from exc
+
+    if result is None:
+        raise HTTPException(status_code=404, detail="Uploaded file not found in this project.")
+    return CviReadinessRead.model_validate(result)
+
+
 reference_router = APIRouter(prefix="/reference", tags=["reference"])
 
 
@@ -155,4 +190,16 @@ def ecc_schema() -> dict:
         "optional_columns": [
             {"name": name, "description": COLUMN_DESCRIPTIONS[name]} for name in OPTIONAL_COLUMNS
         ],
+    }
+
+
+@reference_router.get("/cvi")
+def cvi_reference() -> dict:
+    """Expose the synthetic Day 5 CVI configuration used by the pre-check."""
+    return {
+        "target_object": TARGET_OBJECT,
+        "bp_category": {"code": BP_CATEGORY_CODE, "label": BP_CATEGORY_LABEL},
+        "required_bp_roles": list(REQUIRED_BP_ROLES),
+        "account_group_mappings": ACCOUNT_GROUP_TO_BP_GROUPING,
+        "disclaimer": CVI_DISCLAIMER,
     }

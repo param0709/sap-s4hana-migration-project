@@ -1,6 +1,7 @@
 """Day 2 coverage for durable, lossless migration-record ingestion."""
 import io
 import uuid
+from pathlib import Path
 from types import SimpleNamespace
 
 import pandas as pd
@@ -90,13 +91,29 @@ def test_source_order_and_initial_status_are_preserved(client, project, db_sessi
     file_id = post_file(client, project, "ordered.csv", content).json()["id"]
     records = records_for(db_session, file_id)
 
-    assert [record.source_row_number for record in records] == [1, 2, 3]
+    assert [record.source_row_number for record in records] == [2, 3, 4]
     assert [record.original_data["KUNNR"] for record in records] == [
         "first",
         "second",
         "third",
     ]
     assert all(record.record_status == RecordStatus.PENDING for record in records)
+
+
+def test_source_row_numbers_include_header_and_blank_rows(client, project, db_session):
+    response = post_file(
+        client,
+        project,
+        "blank-row.csv",
+        b"KUNNR,NAME1,ORT01,LAND1,KTOKD,BUKRS\n"
+        b",,,,,\n"
+        b"00001001,Alpha,Mumbai,IN,ZDOM,1000\n",
+        "text/csv",
+    )
+
+    assert response.status_code == 201
+    records = records_for(db_session, response.json()["id"])
+    assert [record.source_row_number for record in records] == [3]
 
 
 def test_original_and_working_data_start_equal_but_independent(
@@ -242,7 +259,8 @@ def test_blank_xlsx_rows_are_not_persisted(client, project, db_session):
     response = post_file(client, project, "blank_rows.xlsx", content)
 
     assert response.json()["row_count"] == 2
-    assert len(records_for(db_session, response.json()["id"])) == 2
+    records = records_for(db_session, response.json()["id"])
+    assert [record.source_row_number for record in records] == [2, 5]
 
 
 def test_nonblank_extra_csv_cell_is_rejected_without_persistence(
@@ -382,6 +400,11 @@ class RecordingSession:
 
 def prepare_service_double(monkeypatch, session: RecordingSession) -> None:
     monkeypatch.setattr(file_service, "store_original", lambda *args: "storage/source.csv")
+    monkeypatch.setattr(
+        file_service,
+        "remove_original",
+        lambda path: session.events.append("cleanup"),
+    )
 
     def mark_uploaded(db, project):
         session.events.append("mark")
@@ -428,5 +451,21 @@ def test_database_failures_rollback_and_reraise(monkeypatch, failure):
             content,
         )
 
-    assert session.events[-1] == "rollback"
+    assert session.events[-2:] == ["rollback", "cleanup"]
     assert "refresh" not in session.events
+
+
+def test_database_failure_removes_the_written_original(monkeypatch):
+    session = RecordingSession(fail_at="flush")
+    project_id = uuid.uuid4()
+    project_directory = Path(settings.storage_dir) / str(project_id)
+
+    with pytest.raises(RuntimeError, match="failure at flush"):
+        file_service.ingest_ecc_file(
+            session,
+            project_id,
+            "orphan.csv",
+            b"KUNNR,NAME1\n1,Alpha\n",
+        )
+
+    assert not project_directory.exists()
